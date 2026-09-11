@@ -179,17 +179,20 @@ class OnDeviceMardRecognitionService(private val context: Context) : MardRecogni
         val bitmap = loadBitmap(
             uri = imageUri,
             crop = crop,
-            maximumLongSide = 4096,
-            minimumShortSide = 720,
+            maximumLongSide = 3200,
+            minimumShortSide = 640,
         )
         val recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
-        val variants = mutableListOf(bitmap)
         return try {
-            variants += createTextContrastBitmap(bitmap, inverted = false)
-            variants += createTextContrastBitmap(bitmap, inverted = true)
-            val passes = variants.map { variant ->
-                val text = Tasks.await(recognizer.process(InputImage.fromBitmap(variant, 0)))
-                text.textBlocks.flatMap { block -> block.lines.map { it.text } }
+            val passes = mutableListOf<List<String>>()
+            passes += recognizeLines(recognizer, bitmap)
+            listOf(false, true).forEach { inverted ->
+                val enhanced = createTextContrastBitmap(bitmap, inverted)
+                try {
+                    passes += recognizeLines(recognizer, enhanced)
+                } finally {
+                    enhanced.recycle()
+                }
             }
             val parsed = MardRecognitionParser.parsePasses(passes, paletteVersion)
             parsed.copy(
@@ -203,7 +206,7 @@ class OnDeviceMardRecognitionService(private val context: Context) : MardRecogni
             )
         } finally {
             recognizer.close()
-            variants.distinctBy { System.identityHashCode(it) }.forEach { it.recycle() }
+            bitmap.recycle()
         }
     }
 
@@ -334,6 +337,14 @@ class OnDeviceMardRecognitionService(private val context: Context) : MardRecogni
         )
         if (scaled !== decoded) decoded.recycle()
         return scaled
+    }
+
+    private fun recognizeLines(
+        recognizer: com.google.mlkit.vision.text.TextRecognizer,
+        bitmap: Bitmap,
+    ): List<String> {
+        val text = Tasks.await(recognizer.process(InputImage.fromBitmap(bitmap, 0)))
+        return text.textBlocks.flatMap { block -> block.lines.map { it.text } }
     }
 
     private fun createTextContrastBitmap(source: Bitmap, inverted: Boolean): Bitmap {
