@@ -34,7 +34,7 @@ jobs:
           printf '%s' "$RELEASE_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/douce-release.jks"
 
       - name: Run unit tests and Android lint
-        run: ./gradlew testReleaseUnitTest lintRelease
+        run: ./gradlew testDebugUnitTest lintRelease
 
       - name: Build signed release APK
         env:
