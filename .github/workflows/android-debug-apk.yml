@@ -3,7 +3,7 @@ name: Build signed Android APK
 on:
   workflow_dispatch:
   push:
-    branches: [main]
+    branches: [main, v0.5.1-development]
     tags: ["v*"]
 
 permissions:
