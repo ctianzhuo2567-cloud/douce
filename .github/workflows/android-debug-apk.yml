@@ -3,7 +3,7 @@ name: Build signed Android APK
 on:
   workflow_dispatch:
   push:
-    branches: [main, v0.5.1-development]
+    branches: [main]
     tags: ["v*"]
 
 permissions:
@@ -24,6 +24,13 @@ jobs:
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
+
+      - name: Resolve app release tag
+        shell: bash
+        run: |
+          VERSION="$(sed -n 's/.*versionName = "\([^"]*\)".*/\1/p' app/build.gradle.kts | head -n 1)"
+          test -n "$VERSION"
+          echo "DOUCE_RELEASE_TAG=v$VERSION" >> "$GITHUB_ENV"
 
       - name: Decode release signing key
         shell: bash
@@ -65,18 +72,24 @@ jobs:
           retention-days: 14
 
       - name: Prepare release APK
-        if: startsWith(github.ref, 'refs/tags/v')
+        if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
         shell: bash
-        run: cp app/build/outputs/apk/release/app-release.apk "douce-${GITHUB_REF_NAME}.apk"
+        run: cp app/build/outputs/apk/release/app-release.apk "douce-${DOUCE_RELEASE_TAG}.apk"
 
-      - name: Publish GitHub Release
-        if: startsWith(github.ref, 'refs/tags/v')
+      - name: Publish GitHub Release when missing
+        if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "$GITHUB_REF_NAME" \
-            "douce-${GITHUB_REF_NAME}.apk#豆册 ${GITHUB_REF_NAME} APK" \
+          if gh release view "$DOUCE_RELEASE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Release $DOUCE_RELEASE_TAG already exists; leaving it unchanged."
+            exit 0
+          fi
+          gh release create "$DOUCE_RELEASE_TAG" \
+            "douce-$DOUCE_RELEASE_TAG.apk#豆册 $DOUCE_RELEASE_TAG APK" \
             --repo "$GITHUB_REPOSITORY" \
-            --title "豆册 ${GITHUB_REF_NAME}" \
-            --notes "正式签名安卓版本。支持完整 ZIP 数据备份与恢复; 全新安装不包含图纸或库存数据。"
+            --target "$GITHUB_SHA" \
+            --title "豆册 $DOUCE_RELEASE_TAG" \
+            --generate-notes \
+            --notes "正式签名安卓版本。全新安装不包含图纸或库存数据，升级安装会保留现有本地数据；建议升级前先在 App 内导出备份。"
