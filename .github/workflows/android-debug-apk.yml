@@ -33,6 +33,9 @@ jobs:
           test -n "$RELEASE_KEYSTORE_BASE64"
           printf '%s' "$RELEASE_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/douce-release.jks"
 
+      - name: Run unit tests and Android lint
+        run: ./gradlew testReleaseUnitTest lintRelease
+
       - name: Build signed release APK
         env:
           DOUCE_KEYSTORE_PATH: ${{ runner.temp }}/douce-release.jks
