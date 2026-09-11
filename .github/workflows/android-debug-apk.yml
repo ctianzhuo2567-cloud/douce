@@ -48,8 +48,7 @@ jobs:
           APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -n 1)"
           test -n "$APKSIGNER"
           OUTPUT="$("$APKSIGNER" verify --verbose --print-certs "$APK")"
-          printf '%s
-' "$OUTPUT"
+          echo "$OUTPUT"
           NORMALIZED="$(printf '%s' "$OUTPUT" | tr -d ':' | tr '[:upper:]' '[:lower:]')"
           EXPECTED="04ee64295a8e326205a0750f6f89346907f8d216f01f953241b3482737b04d7d"
           printf '%s' "$NORMALIZED" | grep -q "$EXPECTED"
