@@ -413,6 +413,7 @@ fun PatternBookApp() {
             pattern = reviewPattern,
             warnings = reviewWarnings,
             swatches = swatches,
+            paletteVersion = paletteVersion,
             onBack = { reviewPatternId = null },
             onConfirm = {
                 updatePattern(reviewPattern.copy(recognitionStatus = RecognitionStatus.CONFIRMED))
@@ -421,6 +422,19 @@ fun PatternBookApp() {
             onRecognizeAgain = {
                 reviewPatternId = null
                 startLegendRecognition(reviewPattern)
+            },
+            onResultsChange = { results ->
+                val current = patterns.firstOrNull { it.id == reviewPattern.id } ?: reviewPattern
+                updatePattern(
+                    current.copy(
+                        recognizedCodes = results,
+                        recognitionStatus = if (results.isEmpty()) {
+                            RecognitionStatus.NOT_STARTED
+                        } else {
+                            RecognitionStatus.NEEDS_REVIEW
+                        },
+                    ),
+                )
             },
         )
         return
