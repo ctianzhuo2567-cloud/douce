@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.CircleShape
@@ -25,12 +26,14 @@ import androidx.compose.material.icons.rounded.AddPhotoAlternate
 import androidx.compose.material.icons.rounded.Favorite
 import androidx.compose.material.icons.rounded.FavoriteBorder
 import androidx.compose.material.icons.rounded.Search
+import androidx.compose.material.icons.rounded.Upload
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -49,8 +52,6 @@ import com.pindou.patternbook.data.PatternStatus
 import com.pindou.patternbook.ui.components.UriImage
 import com.pindou.patternbook.ui.theme.BerryPink
 import com.pindou.patternbook.ui.theme.GrapePurple
-import com.pindou.patternbook.ui.theme.DustyRose
-import com.pindou.patternbook.ui.theme.PaleMauve
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -84,107 +85,131 @@ fun LibraryScreen(
         matchesQuery && matchesStatus && matchesTag && matchesFavorite
     }
 
-    Column(modifier = Modifier.fillMaxSize()) {
-        LibraryHeader(patterns = patterns)
+    LazyVerticalGrid(
+        columns = GridCells.Fixed(2),
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(bottom = 110.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp),
+    ) {
+        item(span = { GridItemSpan(maxLineSpan) }) {
+            LibraryHeader(patterns = patterns, onImport = onImport)
+        }
 
-        OutlinedTextField(
-            value = query,
-            onValueChange = { query = it },
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 18.dp),
-            placeholder = { Text("搜索名称或标签") },
-            leadingIcon = { Icon(Icons.Rounded.Search, contentDescription = null) },
-            shape = RoundedCornerShape(18.dp),
-            singleLine = true,
-        )
+        item(span = { GridItemSpan(maxLineSpan) }) {
+            OutlinedTextField(
+                value = query,
+                onValueChange = { query = it },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 18.dp),
+                placeholder = { Text("搜索图纸或标签") },
+                leadingIcon = { Icon(Icons.Rounded.Search, contentDescription = null) },
+                shape = RoundedCornerShape(16.dp),
+                singleLine = true,
+            )
+        }
 
-        Text(
-            "标签",
-            modifier = Modifier.padding(start = 20.dp, top = 10.dp),
-            style = MaterialTheme.typography.labelLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        LazyRow(
-            contentPadding = PaddingValues(horizontal = 18.dp, vertical = 4.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            item {
-                FilterChip(
-                    selected = tagFilter == null && !favoriteOnly,
-                    onClick = { tagFilter = null; favoriteOnly = false },
-                    label = { Text("全部") },
+        item(span = { GridItemSpan(maxLineSpan) }) {
+            Column {
+                Text(
+                    "标签",
+                    modifier = Modifier.padding(start = 20.dp),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-            }
-            item {
-                FilterChip(
-                    selected = favoriteOnly,
-                    onClick = { favoriteOnly = !favoriteOnly },
-                    label = { Text("收藏") },
-                )
-            }
-            item {
-                FilterChip(
-                    selected = tagFilter == UNTAGGED_FILTER,
-                    onClick = { tagFilter = UNTAGGED_FILTER },
-                    label = { Text("无标签") },
-                )
-            }
-            items(availableTags.size) { index ->
-                val tag = availableTags[index]
-                FilterChip(
-                    selected = tagFilter == tag,
-                    onClick = { tagFilter = tag },
-                    label = { Text(tag) },
-                )
+                LazyRow(
+                    contentPadding = PaddingValues(horizontal = 18.dp, vertical = 4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    item {
+                        FilterChip(
+                            selected = tagFilter == null && !favoriteOnly,
+                            onClick = {
+                                tagFilter = null
+                                favoriteOnly = false
+                            },
+                            label = { Text("全部") },
+                        )
+                    }
+                    item {
+                        FilterChip(
+                            selected = favoriteOnly,
+                            onClick = { favoriteOnly = !favoriteOnly },
+                            label = { Text("收藏") },
+                        )
+                    }
+                    item {
+                        FilterChip(
+                            selected = tagFilter == UNTAGGED_FILTER,
+                            onClick = { tagFilter = UNTAGGED_FILTER },
+                            label = { Text("无标签") },
+                        )
+                    }
+                    items(availableTags.size) { index ->
+                        val tag = availableTags[index]
+                        FilterChip(
+                            selected = tagFilter == tag,
+                            onClick = { tagFilter = tag },
+                            label = { Text(tag) },
+                        )
+                    }
+                }
             }
         }
 
-        Text(
-            "制作状态",
-            modifier = Modifier.padding(start = 20.dp, top = 2.dp),
-            style = MaterialTheme.typography.labelLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        LazyRow(
-            contentPadding = PaddingValues(horizontal = 18.dp, vertical = 4.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            item {
-                FilterChip(
-                    selected = statusFilter == null,
-                    onClick = { statusFilter = null },
-                    label = { Text("全部") },
+        item(span = { GridItemSpan(maxLineSpan) }) {
+            Column {
+                Text(
+                    "制作状态",
+                    modifier = Modifier.padding(start = 20.dp),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-            }
-            items(PatternStatus.entries.size) { index ->
-                val status = PatternStatus.entries[index]
-                FilterChip(
-                    selected = statusFilter == status,
-                    onClick = { statusFilter = status },
-                    label = { Text(status.label) },
-                )
+                LazyRow(
+                    contentPadding = PaddingValues(horizontal = 18.dp, vertical = 4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    item {
+                        FilterChip(
+                            selected = statusFilter == null,
+                            onClick = { statusFilter = null },
+                            label = { Text("全部") },
+                        )
+                    }
+                    items(PatternStatus.entries.size) { index ->
+                        val status = PatternStatus.entries[index]
+                        FilterChip(
+                            selected = statusFilter == status,
+                            onClick = { statusFilter = status },
+                            label = { Text(status.label) },
+                        )
+                    }
+                }
             }
         }
 
-        Text(
-            "显示 ${visible.size} / ${patterns.size} 张",
-            modifier = Modifier.padding(horizontal = 20.dp, vertical = 5.dp),
-            color = GrapePurple,
-            style = MaterialTheme.typography.labelMedium,
-        )
+        item(span = { GridItemSpan(maxLineSpan) }) {
+            Text(
+                "显示 " + visible.size + " / " + patterns.size + " 张",
+                modifier = Modifier.padding(horizontal = 20.dp),
+                color = GrapePurple,
+                style = MaterialTheme.typography.labelMedium,
+            )
+        }
 
         if (visible.isEmpty()) {
-            EmptyLibrary(hasPatterns = patterns.isNotEmpty(), onImport = onImport)
+            item(span = { GridItemSpan(maxLineSpan) }) {
+                EmptyLibrary(hasPatterns = patterns.isNotEmpty(), onImport = onImport)
+            }
         } else {
-            LazyVerticalGrid(
-                columns = GridCells.Fixed(2),
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(start = 18.dp, end = 18.dp, bottom = 110.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                verticalArrangement = Arrangement.spacedBy(14.dp),
-            ) {
-                items(visible, key = { it.id }) { item ->
+            items(visible, key = { it.id }) { item ->
+                Box(
+                    modifier = Modifier.padding(
+                        start = if (visible.indexOf(item) % 2 == 0) 18.dp else 0.dp,
+                        end = if (visible.indexOf(item) % 2 == 1) 18.dp else 0.dp,
+                    ),
+                ) {
                     PatternCard(
                         item = item,
                         onClick = { onOpenPattern(item) },
@@ -197,35 +222,38 @@ fun LibraryScreen(
 }
 
 @Composable
-private fun LibraryHeader(patterns: List<PatternItem>) {
-    Box(
+private fun LibraryHeader(patterns: List<PatternItem>, onImport: () -> Unit) {
+    Column(
         modifier = Modifier
             .fillMaxWidth()
-            .background(MaterialTheme.colorScheme.surfaceVariant)
-            .padding(horizontal = 20.dp, vertical = 22.dp),
+            .background(Color.White)
+            .padding(horizontal = 20.dp, vertical = 20.dp),
     ) {
-        Column {
-            Text("豆册", style = MaterialTheme.typography.displaySmall)
-            Spacer(Modifier.height(4.dp))
-            Text(
-                if (patterns.isEmpty()) "把喜欢的图纸收进手机" else "筛选、收藏，再按进度慢慢完成",
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                style = MaterialTheme.typography.bodyLarge,
-            )
-            Row(
-                modifier = Modifier.padding(top = 16.dp),
-                horizontalArrangement = Arrangement.spacedBy(7.dp),
-            ) {
-                BeadDot(BerryPink)
-                BeadDot(GrapePurple)
-                BeadDot(DustyRose)
-                BeadDot(PaleMauve)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("我的图纸", style = MaterialTheme.typography.displaySmall)
+                Text(
+                    "MARD 221 图纸册",
+                    modifier = Modifier.padding(top = 3.dp),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
+            OutlinedButton(onClick = onImport, shape = RoundedCornerShape(16.dp)) {
+                Icon(Icons.Rounded.Upload, contentDescription = null)
+                Text("上传图纸", modifier = Modifier.padding(start = 6.dp))
+            }
+        }
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 16.dp),
+            shape = RoundedCornerShape(18.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+        ) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(top = 14.dp),
-                horizontalArrangement = Arrangement.spacedBy(7.dp),
+                    .padding(vertical = 13.dp),
             ) {
                 LibraryStat("全部", patterns.size, Modifier.weight(1f))
                 LibraryStat("待制作", patterns.count { it.status == PatternStatus.READY }, Modifier.weight(1f))
@@ -239,33 +267,11 @@ private fun LibraryHeader(patterns: List<PatternItem>) {
 @Composable
 private fun LibraryStat(label: String, count: Int, modifier: Modifier = Modifier) {
     Column(
-        modifier = modifier
-            .clip(RoundedCornerShape(12.dp, 18.dp, 18.dp, 6.dp))
-            .background(Color.White.copy(alpha = 0.82f))
-            .padding(horizontal = 7.dp, vertical = 8.dp),
+        modifier = modifier,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Text(count.toString(), color = GrapePurple, style = MaterialTheme.typography.titleMedium)
-
+        Text(count.toString(), color = GrapePurple, style = MaterialTheme.typography.titleLarge)
         Text(label, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.labelSmall)
-    }
-}
-
-@Composable
-private fun BeadDot(color: Color) {
-    Box(
-        modifier = Modifier
-            .size(15.dp)
-            .clip(CircleShape)
-            .background(color),
-        contentAlignment = Alignment.Center,
-    ) {
-        Box(
-            modifier = Modifier
-                .size(5.dp)
-                .clip(CircleShape)
-                .background(Color.White.copy(alpha = 0.9f)),
-        )
     }
 }
 
@@ -279,9 +285,9 @@ private fun PatternCard(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick),
-        shape = RoundedCornerShape(22.dp),
+        shape = RoundedCornerShape(18.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
     ) {
         Box {
             UriImage(
@@ -298,7 +304,7 @@ private fun PatternCard(
                     .align(Alignment.TopEnd)
                     .padding(6.dp)
                     .clip(CircleShape)
-                    .background(Color.White.copy(alpha = 0.9f)),
+                    .background(Color.White.copy(alpha = 0.92f)),
             ) {
                 Icon(
                     imageVector = if (item.isFavorite) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
@@ -337,7 +343,7 @@ private fun StatusTicket(label: String) {
     Text(
         text = label,
         modifier = Modifier
-            .clip(RoundedCornerShape(topStart = 4.dp, topEnd = 12.dp, bottomEnd = 12.dp, bottomStart = 4.dp))
+            .clip(RoundedCornerShape(12.dp))
             .background(MaterialTheme.colorScheme.secondaryContainer)
             .padding(horizontal = 9.dp, vertical = 5.dp),
         color = MaterialTheme.colorScheme.secondary,
@@ -349,47 +355,42 @@ private fun StatusTicket(label: String) {
 private fun EmptyLibrary(hasPatterns: Boolean, onImport: () -> Unit) {
     Column(
         modifier = Modifier
-            .fillMaxSize()
-            .padding(36.dp),
-        verticalArrangement = Arrangement.Center,
+            .fillMaxWidth()
+            .padding(horizontal = 36.dp, vertical = 64.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Box(
             modifier = Modifier
-                .size(82.dp)
-                .clip(RoundedCornerShape(28.dp))
+                .size(76.dp)
+                .clip(RoundedCornerShape(24.dp))
                 .background(MaterialTheme.colorScheme.secondaryContainer),
             contentAlignment = Alignment.Center,
         ) {
             Icon(
                 Icons.Rounded.AddPhotoAlternate,
                 contentDescription = null,
-                modifier = Modifier.size(38.dp),
+                modifier = Modifier.size(34.dp),
                 tint = MaterialTheme.colorScheme.secondary,
             )
         }
         Spacer(Modifier.height(18.dp))
         Text(
-            if (hasPatterns) "这里暂时没有匹配的图纸" else "先收进第一张图纸",
+            if (hasPatterns) "没有匹配的图纸" else "暂无图纸",
             style = MaterialTheme.typography.titleLarge,
         )
-        Spacer(Modifier.height(6.dp))
         Text(
-            if (hasPatterns) "换一个筛选条件试试" else "支持从相册或文件中选择多张图片",
+            if (hasPatterns) "换一个筛选条件试试" else "添加图纸后即可整理和识别",
+            modifier = Modifier.padding(top = 6.dp),
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         if (!hasPatterns) {
-            Spacer(Modifier.height(18.dp))
-            Text(
-                "导入图纸",
-                modifier = Modifier
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(MaterialTheme.colorScheme.primary)
-                    .clickable(onClick = onImport)
-                    .padding(horizontal = 22.dp, vertical = 12.dp),
-                color = MaterialTheme.colorScheme.onPrimary,
-                style = MaterialTheme.typography.labelLarge,
-            )
+            OutlinedButton(
+                onClick = onImport,
+                modifier = Modifier.padding(top = 18.dp),
+                shape = RoundedCornerShape(16.dp),
+            ) {
+                Text("上传图纸")
+            }
         }
     }
 }

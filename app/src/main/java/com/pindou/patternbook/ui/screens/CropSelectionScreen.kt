@@ -55,10 +55,14 @@ private const val MIN_CROP_SIZE = 0.08f
 @Composable
 fun CropSelectionScreen(
     pattern: PatternItem,
+    initialCrop: NormalizedCrop = pattern.legendCrop ?: NormalizedCrop.DEFAULT,
+    title: String = "框选色号说明",
+    instruction: String = "拖动框移动区域，拖动两个圆点调整大小。尽量只保留色号与数量。",
+    saveLabel: String = "保存说明区域",
     onBack: () -> Unit,
     onSave: (NormalizedCrop) -> Unit,
 ) {
-    var crop by remember(pattern.id) { mutableStateOf(pattern.legendCrop ?: NormalizedCrop.DEFAULT) }
+    var crop by remember(pattern.id, initialCrop) { mutableStateOf(initialCrop) }
     var viewport by remember { mutableStateOf(IntSize.Zero) }
     var imageSize by remember { mutableStateOf(IntSize.Zero) }
     val imageRect = fittedImageRect(viewport, imageSize)
@@ -68,7 +72,7 @@ fun CropSelectionScreen(
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             TopAppBar(
-                title = { Text("框选色号说明") },
+                title = { Text(title) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.Rounded.ArrowBack, contentDescription = "返回")
@@ -85,7 +89,7 @@ fun CropSelectionScreen(
                 .padding(horizontal = 16.dp),
         ) {
             Text(
-                "拖动粉色框移动区域，拖动两个圆点调整大小。尽量只保留色号与数量。",
+                instruction,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 style = MaterialTheme.typography.bodyMedium,
             )
@@ -213,7 +217,7 @@ fun CropSelectionScreen(
                     .height(52.dp),
                 shape = RoundedCornerShape(18.dp),
             ) {
-                Text("保存说明区域")
+                Text(saveLabel)
             }
         }
     }

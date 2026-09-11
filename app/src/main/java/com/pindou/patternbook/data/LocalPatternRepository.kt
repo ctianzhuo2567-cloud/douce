@@ -3,6 +3,7 @@ package com.pindou.patternbook.data
 import android.content.Context
 import android.net.Uri
 import android.provider.OpenableColumns
+import com.pindou.patternbook.recognition.RecognizedMardCode
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
@@ -46,7 +47,7 @@ class LocalPatternRepository(private val context: Context) {
                 var title = baseTitle
                 var suffix = 2
                 while (!knownNames.add(title)) {
-                    title = "$baseTitle（${suffix++}）"
+                    title = baseTitle + "（" + (suffix++) + "）"
                 }
 
                 PatternItem(
@@ -62,7 +63,9 @@ class LocalPatternRepository(private val context: Context) {
     fun save(items: List<PatternItem>) {
         val array = JSONArray()
         items.forEach { array.put(it.toJson()) }
-        preferences.edit().putString(KEY_PATTERNS, array.toString()).apply()
+        check(preferences.edit().putString(KEY_PATTERNS, array.toString()).commit()) {
+            "无法保存图纸信息"
+        }
     }
 
     private fun displayName(uri: Uri): String {
@@ -89,15 +92,37 @@ class LocalPatternRepository(private val context: Context) {
         put("mirrorHorizontal", mirrorHorizontal)
         put("mirrorVertical", mirrorVertical)
         legendCrop?.let { crop ->
-            put("legendCrop", JSONObject().apply {
-                put("left", crop.left.toDouble())
-                put("top", crop.top.toDouble())
-                put("right", crop.right.toDouble())
-                put("bottom", crop.bottom.toDouble())
-            })
+            put("legendCrop", crop.toJson())
         }
         put("tags", JSONArray(tags))
         put("note", note)
+        put("recognizedCodes", JSONArray().apply {
+            recognizedCodes.forEach { result ->
+                put(JSONObject().apply {
+                    put("code", result.code)
+                    result.quantity?.let { put("quantity", it) }
+                    put("confidence", result.confidence.toDouble())
+                    put("sourceText", result.sourceText)
+                })
+            }
+        })
+        gridPattern?.let { grid ->
+            put("gridPattern", JSONObject().apply {
+                put("rows", grid.rows)
+                put("columns", grid.columns)
+                put("crop", grid.crop.toJson())
+                put("cells", JSONArray().apply {
+                    grid.cells.forEach { cell ->
+                        put(JSONObject().apply {
+                            put("row", cell.row)
+                            put("column", cell.column)
+                            cell.code?.let { put("code", it) }
+                            put("confidence", cell.confidence.toDouble())
+                        })
+                    }
+                })
+            })
+        }
     }
 
     private fun JSONObject.toPatternItem() = PatternItem(
@@ -113,20 +138,66 @@ class LocalPatternRepository(private val context: Context) {
         isFavorite = optBoolean("isFavorite"),
         mirrorHorizontal = optBoolean("mirrorHorizontal"),
         mirrorVertical = optBoolean("mirrorVertical"),
-        legendCrop = optJSONObject("legendCrop")?.let { crop ->
-            NormalizedCrop(
-                left = crop.optDouble("left", 0.08).toFloat(),
-                top = crop.optDouble("top", 0.72).toFloat(),
-                right = crop.optDouble("right", 0.92).toFloat(),
-                bottom = crop.optDouble("bottom", 0.96).toFloat(),
-            )
-        },
+        legendCrop = optJSONObject("legendCrop")?.toCrop(),
         tags = optJSONArray("tags")?.let { array ->
             buildList {
                 repeat(array.length()) { index -> add(array.getString(index)) }
             }
         }.orEmpty(),
         note = optString("note"),
+        recognizedCodes = optJSONArray("recognizedCodes")?.let { array ->
+            buildList {
+                repeat(array.length()) { index ->
+                    val result = array.getJSONObject(index)
+                    add(
+                        RecognizedMardCode(
+                            code = result.getString("code"),
+                            quantity = if (result.has("quantity")) result.optInt("quantity") else null,
+                            confidence = result.optDouble("confidence", 0.0).toFloat(),
+                            sourceText = result.optString("sourceText"),
+                        ),
+                    )
+                }
+            }
+        }.orEmpty(),
+        gridPattern = optJSONObject("gridPattern")?.let { grid ->
+            val rows = grid.optInt("rows", 1)
+            val columns = grid.optInt("columns", 1)
+            GridPattern(
+                rows = rows,
+                columns = columns,
+                crop = grid.optJSONObject("crop")?.toCrop() ?: NormalizedCrop.DEFAULT,
+                cells = grid.optJSONArray("cells")?.let { array ->
+                    buildList {
+                        repeat(array.length()) { index ->
+                            val cell = array.getJSONObject(index)
+                            add(
+                                GridCell(
+                                    row = cell.optInt("row"),
+                                    column = cell.optInt("column"),
+                                    code = cell.optString("code").ifBlank { null },
+                                    confidence = cell.optDouble("confidence", 0.0).toFloat(),
+                                ),
+                            )
+                        }
+                    }
+                }.orEmpty(),
+            ).normalized()
+        },
+    )
+
+    private fun NormalizedCrop.toJson() = JSONObject().apply {
+        put("left", left.toDouble())
+        put("top", top.toDouble())
+        put("right", right.toDouble())
+        put("bottom", bottom.toDouble())
+    }
+
+    private fun JSONObject.toCrop() = NormalizedCrop(
+        left = optDouble("left", 0.08).toFloat(),
+        top = optDouble("top", 0.72).toFloat(),
+        right = optDouble("right", 0.92).toFloat(),
+        bottom = optDouble("bottom", 0.96).toFloat(),
     )
 
     private inline fun <reified T : Enum<T>> enumValueOrDefault(raw: String, fallback: T): T =

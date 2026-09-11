@@ -43,6 +43,8 @@ import com.pindou.patternbook.ui.theme.PaleMauve
 fun RecognitionScreen(
     patterns: List<PatternItem>,
     onOpenPattern: (PatternItem) -> Unit,
+    onRecognize: (PatternItem) -> Unit,
+    recognizingId: String?,
     onGoToLibrary: () -> Unit,
 ) {
     val pending = patterns.filter { it.recognitionStatus != RecognitionStatus.CONFIRMED }
@@ -127,7 +129,12 @@ fun RecognitionScreen(
                                 style = MaterialTheme.typography.labelMedium,
                             )
                         }
-                        Icon(Icons.Rounded.ArrowForward, contentDescription = "打开")
+                        TextButton(
+                            onClick = { onRecognize(item) },
+                            enabled = recognizingId == null,
+                        ) {
+                            Text(if (recognizingId == item.id) "识别中…" else "开始识别")
+                        }
                     }
                 }
             }

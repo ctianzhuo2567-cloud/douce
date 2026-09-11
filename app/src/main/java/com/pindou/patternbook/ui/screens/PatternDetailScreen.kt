@@ -1,6 +1,7 @@
 package com.pindou.patternbook.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.rememberTransformableState
 import androidx.compose.foundation.gestures.transformable
 import androidx.compose.foundation.layout.Arrangement
@@ -18,10 +19,12 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.CropFree
+import androidx.compose.material.icons.rounded.DocumentScanner
 import androidx.compose.material.icons.rounded.Favorite
 import androidx.compose.material.icons.rounded.FavoriteBorder
 import androidx.compose.material.icons.rounded.Flip
 import androidx.compose.material.icons.rounded.Edit
+import androidx.compose.material.icons.rounded.GridOn
 import androidx.compose.material.icons.rounded.SwapVert
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -41,6 +44,7 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -67,6 +71,10 @@ fun PatternDetailScreen(
     paletteVersion: MardPaletteVersion,
     onBack: () -> Unit,
     onSelectLegend: () -> Unit,
+    onRecognize: () -> Unit,
+    recognizing: Boolean,
+    onOpenRecognitionReview: () -> Unit,
+    onOpenGrid: () -> Unit,
     onUpdate: (PatternItem) -> Unit,
 ) {
     var scale by rememberSaveable(pattern.id) { mutableFloatStateOf(1f) }
@@ -123,19 +131,26 @@ fun PatternDetailScreen(
                         .transformable(transformState),
                     contentAlignment = Alignment.Center,
                 ) {
-                    UriImage(
-                        uri = pattern.imageUri,
-                        contentDescription = pattern.title,
-                        modifier = Modifier.fillMaxSize(),
-                        requestedSize = 2200,
-                        contentScale = ContentScale.Fit,
-                        imageModifier = Modifier.graphicsLayer {
-                            scaleX = scale * if (pattern.mirrorHorizontal) -1f else 1f
-                            scaleY = scale * if (pattern.mirrorVertical) -1f else 1f
-                            translationX = offset.x
-                            translationY = offset.y
-                        },
-                    )
+                    key(pattern.mirrorHorizontal, pattern.mirrorVertical) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .graphicsLayer {
+                                    scaleX = scale * if (pattern.mirrorHorizontal) -1f else 1f
+                                    scaleY = scale * if (pattern.mirrorVertical) -1f else 1f
+                                    translationX = offset.x
+                                    translationY = offset.y
+                                },
+                        ) {
+                            UriImage(
+                                uri = pattern.imageUri,
+                                contentDescription = pattern.title,
+                                modifier = Modifier.fillMaxSize(),
+                                requestedSize = 2200,
+                                contentScale = ContentScale.Fit,
+                            )
+                        }
+                    }
                     Text(
                         text = "${(scale * 100).toInt()}%",
                         modifier = Modifier
@@ -156,7 +171,7 @@ fun PatternDetailScreen(
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 MirrorButton(
-                    label = "左右镜像",
+                    label = "一键左右镜像",
                     selected = pattern.mirrorHorizontal,
                     icon = { Icon(Icons.Rounded.Flip, contentDescription = null) },
                     modifier = Modifier.weight(1f),
@@ -176,6 +191,18 @@ fun PatternDetailScreen(
                     },
                 )
             }
+            if (pattern.mirrorHorizontal || pattern.mirrorVertical) {
+                Text(
+                    text = when {
+                        pattern.mirrorHorizontal && pattern.mirrorVertical -> "当前预览：左右与上下镜像"
+                        pattern.mirrorHorizontal -> "当前预览：已左右镜像"
+                        else -> "当前预览：已上下镜像"
+                    },
+                    modifier = Modifier.padding(start = 4.dp, top = 6.dp),
+                    color = GrapePurple,
+                    style = MaterialTheme.typography.labelMedium,
+                )
+            }
 
             Button(
                 onClick = onSelectLegend,
@@ -192,6 +219,56 @@ fun PatternDetailScreen(
                 Icon(Icons.Rounded.CropFree, contentDescription = null)
                 Spacer(Modifier.size(8.dp))
                 Text(if (pattern.legendCrop == null) "框选色号说明" else "调整色号说明区域")
+            }
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 10.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                Button(
+                    onClick = onRecognize,
+                    enabled = !recognizing,
+                    modifier = Modifier.weight(1f).height(48.dp),
+                    shape = RoundedCornerShape(16.dp),
+                ) {
+                    Icon(Icons.Rounded.DocumentScanner, contentDescription = null)
+                    Spacer(Modifier.size(7.dp))
+                    Text(if (recognizing) "识别中…" else "识别色号")
+                }
+                Button(
+                    onClick = onOpenGrid,
+                    modifier = Modifier.weight(1f).height(48.dp),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                        contentColor = MaterialTheme.colorScheme.secondary,
+                    ),
+                ) {
+                    Icon(Icons.Rounded.GridOn, contentDescription = null)
+                    Spacer(Modifier.size(7.dp))
+                    Text(if (pattern.gridPattern == null) "识别网格" else "打开网格")
+                }
+            }
+
+            if (pattern.recognizedCodes.isNotEmpty()) {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 10.dp)
+                        .clickable(onClick = onOpenRecognitionReview),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 11.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text("已识别 " + pattern.recognizedCodes.size + " 种色号", modifier = Modifier.weight(1f))
+                        Text(pattern.recognitionStatus.label, color = GrapePurple)
+                    }
+                }
             }
 
             if (pattern.tags.isNotEmpty() || pattern.note.isNotBlank()) {

@@ -1,5 +1,7 @@
 package com.pindou.patternbook.data
 
+import com.pindou.patternbook.recognition.RecognizedMardCode
+
 enum class PatternStatus(val label: String) {
     TO_SORT("待整理"),
     READY("待制作"),
@@ -26,6 +28,8 @@ data class PatternItem(
     val legendCrop: NormalizedCrop? = null,
     val tags: List<String> = emptyList(),
     val note: String = "",
+    val recognizedCodes: List<RecognizedMardCode> = emptyList(),
+    val gridPattern: GridPattern? = null,
 )
 
 data class NormalizedCrop(
