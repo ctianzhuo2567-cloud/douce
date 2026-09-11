@@ -295,7 +295,7 @@ private fun StockCard(stock: BeadStock, onClick: () -> Unit, onAdjust: (Int) -> 
             ) {
                 Text(
                     (stock.quantity ?: 0).toString() + " 颗",
-                    color = if (swatch.luminance() > 0.58f) Color.Black else Color.White,
+                    color = contrastTextColor(swatch),
                     style = MaterialTheme.typography.headlineSmall,
                 )
             }
@@ -359,6 +359,11 @@ private fun QuantityDialog(stock: BeadStock, onDismiss: () -> Unit, onSave: (Int
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("取消") } },
     )
+}
+
+private fun contrastTextColor(color: Color): Color {
+    val brightness = 0.2126f * color.red + 0.7152f * color.green + 0.0722f * color.blue
+    return if (brightness > 0.58f) Color.Black else Color.White
 }
 
 private fun parseSwatchColor(hex: String): Color =
