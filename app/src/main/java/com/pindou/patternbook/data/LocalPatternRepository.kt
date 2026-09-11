@@ -1,11 +1,11 @@
 package com.pindou.patternbook.data
 
 import android.content.Context
-import android.content.Intent
 import android.net.Uri
 import android.provider.OpenableColumns
 import org.json.JSONArray
 import org.json.JSONObject
+import java.io.File
 import java.util.UUID
 
 class LocalPatternRepository(private val context: Context) {
@@ -24,23 +24,38 @@ class LocalPatternRepository(private val context: Context) {
     }
 
     fun importUris(uris: List<Uri>, existing: List<PatternItem>): List<PatternItem> {
-        val knownUris = existing.mapTo(mutableSetOf()) { it.imageUri }
-        return uris.mapNotNull { uri ->
-            if (!knownUris.add(uri.toString())) return@mapNotNull null
+        val knownNames = existing.mapTo(mutableSetOf()) { it.title }
+        val imageDirectory = File(context.filesDir, IMAGE_DIRECTORY).apply { mkdirs() }
 
+        return uris.mapNotNull { sourceUri ->
             runCatching {
-                context.contentResolver.takePersistableUriPermission(
-                    uri,
-                    Intent.FLAG_GRANT_READ_URI_PERMISSION,
-                )
-            }
+                val id = UUID.randomUUID().toString()
+                val displayName = displayName(sourceUri)
+                val extension = displayName.substringAfterLast('.', "jpg")
+                    .lowercase()
+                    .takeIf { it.matches(Regex("[a-z0-9]{1,5}")) }
+                    ?: "jpg"
+                val target = File(imageDirectory, "$id.$extension")
+                val input = context.contentResolver.openInputStream(sourceUri)
+                    ?: error("无法读取所选图片")
+                input.buffered().use { source ->
+                    target.outputStream().buffered().use { output -> source.copyTo(output) }
+                }
 
-            PatternItem(
-                id = UUID.randomUUID().toString(),
-                title = displayName(uri).substringBeforeLast('.').ifBlank { "未命名图纸" },
-                imageUri = uri.toString(),
-                createdAt = System.currentTimeMillis(),
-            )
+                val baseTitle = displayName.substringBeforeLast('.').ifBlank { "未命名图纸" }
+                var title = baseTitle
+                var suffix = 2
+                while (!knownNames.add(title)) {
+                    title = "$baseTitle（${suffix++}）"
+                }
+
+                PatternItem(
+                    id = id,
+                    title = title,
+                    imageUri = Uri.fromFile(target).toString(),
+                    createdAt = System.currentTimeMillis(),
+                )
+            }.getOrNull()
         }
     }
 
@@ -119,5 +134,6 @@ class LocalPatternRepository(private val context: Context) {
 
     private companion object {
         const val KEY_PATTERNS = "patterns"
+        const val IMAGE_DIRECTORY = "pattern_images"
     }
 }

@@ -11,15 +11,28 @@ android {
         applicationId = "com.pindou.patternbook"
         minSdk = 26
         targetSdk = 37
-        versionCode = 4
-        versionName = "0.3.1"
+        versionCode = 5
+        versionName = "0.4.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true
     }
 
+
+    signingConfigs {
+        val keystorePath = System.getenv("DOUCE_KEYSTORE_PATH")
+        if (!keystorePath.isNullOrBlank()) {
+            create("release") {
+                storeFile = file(keystorePath)
+                storePassword = System.getenv("DOUCE_KEYSTORE_PASSWORD")
+                keyAlias = System.getenv("DOUCE_KEY_ALIAS")
+                keyPassword = System.getenv("DOUCE_KEY_PASSWORD")
+            }
+        }
+    }
     buildTypes {
         release {
+            signingConfigs.findByName("release")?.let { signingConfig = it }
             isMinifyEnabled = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),

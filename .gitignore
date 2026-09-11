@@ -12,6 +12,8 @@ captures/
 *.jks
 *.keystore
 keystore.properties
+.signing/
+AGENT.local.md
 
 # Local reference images may contain third-party artwork or watermarks.
 拼豆测试图纸/
