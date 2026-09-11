@@ -54,7 +54,7 @@ interface MardRecognitionService {
 /** Pure parser kept separate from ML Kit so its correction rules can be regression tested. */
 object MardRecognitionParser {
     private val candidatePattern = Regex(
-        "(?<![A-Z0-9])([A-HM468N])\\s*[-_ ]?\\s*([0-9OILSZBG]{1,2})(?![A-Z0-9])",
+        "(?<![A-Z0-9])([A-HMN])\\s*[-_ ]?\\s*([0-9OILSZBG]{1,2})(?![A-Z0-9])",
         RegexOption.IGNORE_CASE,
     )
     private val quantityPattern = Regex(
@@ -124,13 +124,9 @@ object MardRecognitionParser {
     ): String? {
         val compact = raw.uppercase().replace(Regex("[^A-Z0-9]"), "")
         if (compact.length !in 2..3) return null
-        val series = when (compact.first()) {
-            '4' -> 'A'
-            '8' -> 'B'
-            '6' -> 'G'
-            'N' -> 'M'
-            else -> compact.first()
-        }
+        val rawSeries = compact.first()
+        if (rawSeries !in "ABCDEFGHMN") return null
+        val series = if (rawSeries == 'N') 'M' else rawSeries
         val digits = compact.drop(1).map { character ->
             when (character) {
                 'O', 'Q', 'D' -> '0'
