@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>豆册 · 电脑交互预览</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <main class="desk">
+    <section class="brief">
+      <p class="eyebrow">ANDROID UI PREVIEW</p>
+      <h1>豆册</h1>
+      <p class="lead">这里预览界面和操作方向。真实的文件权限、大图性能与安装升级，仍以安卓版本为准。</p>
+      <div class="legend">
+        <span><i class="dot pink"></i>打开任意图纸</span>
+        <span><i class="dot purple"></i>试用左右 / 上下镜像</span>
+        <span><i class="dot yellow"></i>拖动框选色号说明</span>
+      </div>
+      <div class="update-note">
+        <strong>预览使用真实测试图片</strong>
+        <span>不会上传图片，也不会修改原图。</span>
+      </div>
+    </section>
+
+    <section class="phone" aria-label="豆册手机界面预览">
+      <div class="statusbar"><span>13:40</span><span>● ● ●　82%</span></div>
+
+      <div id="libraryView" class="view active">
+        <header class="app-hero">
+          <div>
+            <p class="app-title">豆册</p>
+            <p class="app-subtitle">已经收好 7 张图纸</p>
+          </div>
+          <div class="beads"><i></i><i></i><i></i><i></i></div>
+          <div class="library-stats">
+            <span><strong id="patternAllStat">7</strong>全部</span>
+            <span><strong id="patternReadyStat">0</strong>待制作</span>
+            <span><strong id="patternDoingStat">0</strong>制作中</span>
+            <span><strong id="patternDoneStat">0</strong>已完成</span>
+          </div>
+        </header>
+        <div class="toolbar">
+          <label class="search"><span>⌕</span><input id="searchInput" placeholder="搜索名称或标签"></label>
+          <p class="filter-label">标签</p>
+          <div id="tagFilters" class="filters compact-filters">
+            <button class="chip active" data-tag="all">全部</button>
+            <button class="chip" data-tag="favorite">收藏</button>
+            <button class="chip" data-tag="untagged">无标签</button>
+            <button class="chip" data-tag="角色">角色</button>
+            <button class="chip" data-tag="合集">合集</button>
+            <button class="chip" data-tag="大图">大图</button>
+          </div>
+          <p class="filter-label">制作状态</p>
+          <div id="statusFilters" class="filters compact-filters">
+            <button class="chip active" data-status="all">全部</button>
+            <button class="chip" data-status="待整理">待整理</button>
+            <button class="chip" data-status="待制作">待制作</button>
+            <button class="chip" data-status="制作中">制作中</button>
+            <button class="chip" data-status="已完成">已完成</button>
+          </div>
+          <p id="patternResultCount" class="result-count"></p>
+        </div>
+        <div id="patternGrid" class="pattern-grid"></div>
+      </div>
+
+      <div id="inventoryView" class="view inventory-view">
+        <header class="inventory-hero">
+          <div><p class="app-title">豆库</p><p class="app-subtitle">MARD 221 · 按颗记录</p></div>
+          <div class="big-bead"></div>
+          <div class="inventory-stats">
+            <span><strong id="ownedStat">0/221</strong>有豆</span>
+            <span><strong id="lowStat">0</strong>快用完</span>
+            <span><strong id="totalStat">0 颗</strong>约合</span>
+          </div>
+          <button id="quickEntryButton" class="quick-entry-button">＋ 快捷入库 · 批量 / MARD221 套装</button>
+        </header>
+        <div class="toolbar">
+          <label class="search"><span>⌕</span><input id="stockSearch" placeholder="搜索色号，例如 A4"></label>
+          <div id="stockFilters" class="filters">
+            <button class="chip active" data-stock-filter="all">全部</button>
+            <button class="chip" data-stock-filter="owned">有库存</button>
+            <button class="chip" data-stock-filter="low">快用完</button>
+            <button class="chip" data-stock-filter="empty">缺货</button>
+            <button class="chip" data-stock-filter="untracked">未录入</button>
+          </div>
+          <div id="seriesFilters" class="filters series-filters"></div>
+        </div>
+        <div id="stockGrid" class="stock-grid"></div>
+      </div>
+
+      <div id="quickEntryView" class="view quick-entry-view">
+        <header class="topbar">
+          <button id="quickBackButton" class="icon-button" aria-label="返回">‹</button>
+          <strong>快捷入库</strong>
+          <span class="topbar-space"></span>
+        </header>
+        <div id="quickModeTabs" class="quick-tabs">
+          <button class="chip active" data-quick-mode="batch">批量记录</button>
+          <button class="chip" data-quick-mode="package">套装入库</button>
+        </div>
+        <section id="batchEntryPanel" class="quick-panel">
+          <div class="quick-summary"><span><strong id="draftColorCount">0</strong>待录色号</span><span><strong id="draftTotal">0</strong>录入后合计</span></div>
+          <div id="quickSeriesFilters" class="filters series-filters"></div>
+          <div id="batchRows" class="batch-rows"></div>
+        </section>
+        <section id="packageEntryPanel" class="quick-panel" hidden>
+          <div class="quick-card"><strong>MARD 221 全色套装</strong><p>一次处理 A–H 与 M 系列全部 221 个色号。</p></div>
+          <div class="quick-card"><label>每色数量<input id="packageAmount" inputmode="numeric" value="1000"><span>颗</span></label></div>
+          <div class="quick-card"><strong>如何写入</strong><div id="packageOperations" class="filters"><button class="chip active" data-operation="add">追加库存</button><button class="chip" data-operation="set">设为数量</button></div><p id="packageHint">在现有数量上增加；未录入色号从 0 开始。</p></div>
+        </section>
+        <button id="applyQuickEntry" class="quick-confirm" disabled>确认入库</button>
+      </div>
+
+      <div id="detailView" class="view detail-view">
+        <header class="topbar">
+          <button id="backButton" class="icon-button" aria-label="返回">‹</button>
+          <strong id="detailTitle">图纸</strong>
+          <button id="favoriteButton" class="icon-button heart" aria-label="收藏">♡</button>
+        </header>
+        <div class="image-stage">
+          <img id="detailImage" alt="图纸预览">
+          <span class="zoom-ticket">100%</span>
+        </div>
+        <div class="mirror-actions">
+          <button id="mirrorX">⇆ 左右镜像</button>
+          <button id="mirrorY">⇅ 上下镜像</button>
+        </div>
+        <button id="cropButton" class="crop-action">⌗　框选色号说明</button>
+        <p class="microcopy">镜像只改变预览，不覆盖原图。正式导出时说明文字会保持正向。</p>
+        <div class="status-row"><button class="chip active">待整理</button><button class="chip">制作中</button><button class="chip">已完成</button></div>
+      </div>
+
+      <div id="cropView" class="view crop-view">
+        <header class="topbar">
+          <button id="cropBackButton" class="icon-button" aria-label="返回">‹</button>
+          <strong>框选色号说明</strong>
+          <span class="topbar-space"></span>
+        </header>
+        <p class="crop-tip">拖动粉色框移动，拖动右下圆点调整大小。</p>
+        <div id="cropStage" class="crop-stage">
+          <img id="cropImage" alt="框选图纸">
+          <div id="cropShade" class="crop-shade"></div>
+          <div id="cropBox" class="crop-box"><i class="handle tl"></i><i id="resizeHandle" class="handle br"></i></div>
+        </div>
+        <button id="saveCropButton" class="primary-action">保存说明区域</button>
+      </div>
+
+      <nav class="bottom-nav" id="bottomNav">
+        <button class="active" data-main-view="libraryView"><span>▦</span>图纸</button>
+        <button data-main-view="inventoryView"><span>◉</span>豆库</button>
+        <button data-placeholder="识别"><span>⌁</span>识别</button>
+        <button data-placeholder="设置"><span>⚙</span>设置</button>
+      </nav>
+      <button id="addButton" class="fab" aria-label="导入图纸">＋</button>
+    </section>
+  </main>
+  <script src="mard221.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

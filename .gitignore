@@ -1,0 +1,17 @@
+*.iml
+.gradle/
+.idea/
+local.properties
+build/
+app/build/
+captures/
+.externalNativeBuild/
+.cxx/
+
+# Signing material must stay local.
+*.jks
+*.keystore
+keystore.properties
+
+# Local reference images may contain third-party artwork or watermarks.
+拼豆测试图纸/
