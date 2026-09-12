@@ -2,6 +2,7 @@ package com.pindou.patternbook.ui.screens
 
 import android.graphics.Paint
 import android.graphics.Typeface
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -82,6 +83,24 @@ fun GridPatternEditorScreen(
     var additionalCodes by remember(pattern.id) { mutableStateOf<Set<String>>(emptySet()) }
     var showAddCodeDialog by remember { mutableStateOf(false) }
     var codeInput by remember { mutableStateOf("") }
+    var editing by remember(pattern.id) { mutableStateOf(false) }
+    var confirmLeave by remember { mutableStateOf(false) }
+    val changed = editable != grid.normalized()
+    val requestBack: () -> Unit = { if (changed) confirmLeave = true else onBack() }
+    BackHandler(enabled = !showAddCodeDialog && !confirmLeave, onBack = requestBack)
+    if (confirmLeave) {
+        AlertDialog(
+            onDismissRequest = { confirmLeave = false },
+            title = { Text("保存本次修改？") },
+            text = { Text("网格中有尚未保存的修改。") },
+            confirmButton = {
+                TextButton(onClick = { confirmLeave = false; onSave(editable) }) { Text("保存并返回") }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmLeave = false; onBack() }) { Text("放弃修改") }
+            },
+        )
+    }
     var viewport by remember { mutableStateOf(IntSize.Zero) }
     var zoom by remember { mutableFloatStateOf(1f) }
     var pan by remember { mutableStateOf(Offset.Zero) }
@@ -120,6 +139,7 @@ fun GridPatternEditorScreen(
                     onClick = {
                         additionalCodes = additionalCodes + normalizedCodeInput
                         highlightCode = normalizedCodeInput
+                        editing = true
                         codeInput = ""
                         showAddCodeDialog = false
                     },
@@ -137,11 +157,14 @@ fun GridPatternEditorScreen(
             TopAppBar(
                 title = { Text("图纸高亮助手") },
                 navigationIcon = {
-                    IconButton(onClick = onBack) {
+                    IconButton(onClick = requestBack) {
                         Icon(Icons.Rounded.ArrowBack, contentDescription = "返回")
                     }
                 },
                 actions = {
+                    TextButton(onClick = { editing = !editing }) {
+                        Text(if (editing) "结束编辑" else "编辑格子")
+                    }
                     IconButton(
                         onClick = {
                             zoom = 1f
@@ -215,6 +238,7 @@ fun GridPatternEditorScreen(
                         zoom = zoom,
                         pan = pan,
                         onCellTap = { row, column ->
+                            if (editing) {
                             when (val code = highlightCode) {
                                 null -> Unit
                                 ERASE_GRID_CELL -> editable = editable.copy(
@@ -228,6 +252,7 @@ fun GridPatternEditorScreen(
                                         GridCell(row, column, code, 1f)
                                     editable = editable.copy(cells = next)
                                 }
+                            }
                             }
                         },
                     ),
@@ -252,7 +277,7 @@ fun GridPatternEditorScreen(
             }
 
             Text(
-                when (highlightCode) {
+                if (!editing) "查看模式：选色仅高亮。要修改格子，请先点击右上角“编辑格子”。" else when (highlightCode) {
                     null -> "选择下方色号后，点击格子可以把它改成该色号；双指缩放和拖动查看细节。"
                     ERASE_GRID_CELL -> "当前是擦除模式；点击误识别的格子可将其清空。"
                     else -> "当前高亮 $highlightCode；点击格子可补录或改成该色号。"
@@ -277,6 +302,7 @@ fun GridPatternEditorScreen(
                     FilterChip(
                         selected = highlightCode == ERASE_GRID_CELL,
                         onClick = {
+                            editing = true
                             highlightCode = if (highlightCode == ERASE_GRID_CELL) null else ERASE_GRID_CELL
                         },
                         label = { Text("擦除") },
@@ -319,7 +345,7 @@ private fun Modifier.gridTapInput(
     zoom: Float,
     pan: Offset,
     onCellTap: (Int, Int) -> Unit,
-): Modifier = pointerInput(viewport, rows, columns, zoom, pan) {
+): Modifier = pointerInput(viewport, rows, columns, zoom, pan, onCellTap) {
     detectTapGestures { point ->
         if (viewport.width <= 0 || viewport.height <= 0) return@detectTapGestures
         val layout = gridLayout(viewport.width.toFloat(), viewport.height.toFloat(), rows, columns)

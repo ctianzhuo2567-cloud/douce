@@ -7,6 +7,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.GridOn
@@ -83,6 +86,8 @@ fun GridRecognitionSetupScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
+                .imePadding()
+                .verticalScroll(rememberScrollState())
                 .padding(horizontal = 18.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {

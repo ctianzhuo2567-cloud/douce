@@ -108,8 +108,8 @@ fun PatternBookApp() {
     var gridEditorPatternId by rememberSaveable { mutableStateOf<String?>(null) }
     var pendingGridCrop by remember { mutableStateOf<NormalizedCrop?>(null) }
     var pendingGridSuggestion by remember { mutableStateOf<GridGeometrySuggestion?>(null) }
-    var gridSuggestingPatternId by rememberSaveable { mutableStateOf<String?>(null) }
-    var gridRecognizingId by rememberSaveable { mutableStateOf<String?>(null) }
+    var gridSuggestingPatternId by remember { mutableStateOf<String?>(null) }
+    var gridRecognizingId by remember { mutableStateOf<String?>(null) }
     var quickEntryOpen by rememberSaveable { mutableStateOf(false) }
     var pendingRestoreUri by remember { mutableStateOf<Uri?>(null) }
     var backupBusy by remember { mutableStateOf(false) }
@@ -233,7 +233,7 @@ fun PatternBookApp() {
                     )
                 }
             }
-            if (gridSetupPatternId == pattern.id) {
+            if (gridSetupPatternId == pattern.id && pendingGridCrop == crop) {
                 pendingGridSuggestion = result.getOrElse { error ->
                     GridGeometrySuggestion(
                         rows = null,
@@ -265,6 +265,7 @@ fun PatternBookApp() {
             }
             result.onSuccess { recognized ->
                 val grid = recognized.grid
+                if (gridSetupPatternId != pattern.id || pendingGridCrop != crop) return@onSuccess
                 if (grid == null) {
                     recognitionError = recognized.warnings.joinToString(separator = "\n")
                 } else {
@@ -275,7 +276,9 @@ fun PatternBookApp() {
                     gridEditorPatternId = pattern.id
                 }
             }.onFailure { error ->
-                recognitionError = "网格识别失败：" + (error.message ?: "无法读取图片")
+                if (gridSetupPatternId == pattern.id) {
+                    recognitionError = "网格识别失败：" + (error.message ?: "无法读取图片")
+                }
             }
             gridRecognizingId = null
         }
