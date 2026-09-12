@@ -394,9 +394,12 @@ class OnDeviceMardRecognitionService(private val context: Context) : MardRecogni
         minimumShortSide: Int = 0,
     ): Bitmap {
         val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-        context.contentResolver.openInputStream(uri)?.use {
-            BitmapFactory.decodeStream(it, null, bounds)
-        } ?: error("无法读取图纸图片")
+        val boundsRead = context.contentResolver.openInputStream(uri)?.use { input ->
+            // BitmapFactory intentionally returns null when only bounds are requested.
+            BitmapFactory.decodeStream(input, null, bounds)
+            true
+        } ?: false
+        check(boundsRead) { "无法读取图纸图片" }
         require(bounds.outWidth > 0 && bounds.outHeight > 0) { "图片尺寸无法读取" }
 
         val region = crop?.let {
