@@ -5,6 +5,7 @@ local.properties
 build/
 app/build/
 captures/
+.tmp/
 .externalNativeBuild/
 .cxx/
 

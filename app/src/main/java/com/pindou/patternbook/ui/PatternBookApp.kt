@@ -46,6 +46,7 @@ import com.pindou.patternbook.data.PatternItem
 import com.pindou.patternbook.data.RecognitionStatus
 import com.pindou.patternbook.mard.MardPaletteVersion
 import com.pindou.patternbook.recognition.OnDeviceMardRecognitionService
+import com.pindou.patternbook.recognition.GridGeometrySuggestion
 import com.pindou.patternbook.ui.screens.CropSelectionScreen
 import com.pindou.patternbook.ui.screens.GridPatternEditorScreen
 import com.pindou.patternbook.ui.screens.GridRecognitionSetupScreen
@@ -106,6 +107,8 @@ fun PatternBookApp() {
     var gridSetupPatternId by rememberSaveable { mutableStateOf<String?>(null) }
     var gridEditorPatternId by rememberSaveable { mutableStateOf<String?>(null) }
     var pendingGridCrop by remember { mutableStateOf<NormalizedCrop?>(null) }
+    var pendingGridSuggestion by remember { mutableStateOf<GridGeometrySuggestion?>(null) }
+    var gridSuggestingPatternId by rememberSaveable { mutableStateOf<String?>(null) }
     var gridRecognizingId by rememberSaveable { mutableStateOf<String?>(null) }
     var quickEntryOpen by rememberSaveable { mutableStateOf(false) }
     var pendingRestoreUri by remember { mutableStateOf<Uri?>(null) }
@@ -141,6 +144,9 @@ fun PatternBookApp() {
         gridCropPatternId = null
         gridSetupPatternId = null
         gridEditorPatternId = null
+        pendingGridCrop = null
+        pendingGridSuggestion = null
+        gridSuggestingPatternId = null
         patterns.clear()
         patterns.addAll(repository.load())
         stocks.clear()
@@ -209,7 +215,35 @@ fun PatternBookApp() {
         if (pattern.gridPattern != null) {
             gridEditorPatternId = pattern.id
         } else {
+            pendingGridSuggestion = null
             gridCropPatternId = pattern.id
+        }
+    }
+
+    fun startGridGeometrySuggestion(pattern: PatternItem, crop: NormalizedCrop) {
+        if (gridSuggestingPatternId != null) return
+        gridSuggestingPatternId = pattern.id
+        pendingGridSuggestion = null
+        coroutineScope.launch {
+            val result = runCatching {
+                withContext(Dispatchers.IO) {
+                    recognitionService.suggestGridGeometry(
+                        imageUri = Uri.parse(pattern.imageUri),
+                        crop = crop,
+                    )
+                }
+            }
+            if (gridSetupPatternId == pattern.id) {
+                pendingGridSuggestion = result.getOrElse { error ->
+                    GridGeometrySuggestion(
+                        rows = null,
+                        columns = null,
+                        confidence = 0f,
+                        warnings = listOf(error.message ?: "无法分析网格线"),
+                    )
+                }
+            }
+            gridSuggestingPatternId = null
         }
     }
 
@@ -334,6 +368,7 @@ fun PatternBookApp() {
             gridSetupPatternId != null -> {
                 gridSetupPatternId = null
                 pendingGridCrop = null
+                pendingGridSuggestion = null
             }
             gridCropPatternId != null -> gridCropPatternId = null
             reviewPatternId != null -> reviewPatternId = null
@@ -379,8 +414,10 @@ fun PatternBookApp() {
             onBack = { gridCropPatternId = null },
             onSave = { crop ->
                 pendingGridCrop = crop
+                pendingGridSuggestion = null
                 gridCropPatternId = null
                 gridSetupPatternId = gridCropPattern.id
+                startGridGeometrySuggestion(gridCropPattern, crop)
             },
         )
         return
@@ -393,6 +430,7 @@ fun PatternBookApp() {
             onBack = {
                 gridSetupPatternId = null
                 pendingGridCrop = null
+                pendingGridSuggestion = null
             },
             onStart = { rows, columns ->
                 startGridRecognition(
@@ -400,6 +438,14 @@ fun PatternBookApp() {
                     crop = pendingGridCrop ?: DefaultGridCrop,
                     rows = rows,
                     columns = columns,
+                )
+            },
+            suggestion = pendingGridSuggestion,
+            detecting = gridSuggestingPatternId == gridSetupPattern.id,
+            onRetryDetection = {
+                startGridGeometrySuggestion(
+                    pattern = gridSetupPattern,
+                    crop = pendingGridCrop ?: DefaultGridCrop,
                 )
             },
             recognizing = gridRecognizingId == gridSetupPattern.id,

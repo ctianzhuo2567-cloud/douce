@@ -25,13 +25,16 @@ import androidx.compose.material.icons.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.CenterFocusStrong
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material3.Button
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -63,6 +66,8 @@ import com.pindou.patternbook.ui.theme.GrapePurple
 import kotlin.math.floor
 import kotlin.math.min
 
+private const val ERASE_GRID_CELL = "__ERASE_GRID_CELL__"
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun GridPatternEditorScreen(
@@ -74,6 +79,9 @@ fun GridPatternEditorScreen(
 ) {
     var editable by remember(pattern.id, grid) { mutableStateOf(grid.normalized()) }
     var highlightCode by remember { mutableStateOf<String?>(null) }
+    var additionalCodes by remember(pattern.id) { mutableStateOf<Set<String>>(emptySet()) }
+    var showAddCodeDialog by remember { mutableStateOf(false) }
+    var codeInput by remember { mutableStateOf("") }
     var viewport by remember { mutableStateOf(IntSize.Zero) }
     var zoom by remember { mutableFloatStateOf(1f) }
     var pan by remember { mutableStateOf(Offset.Zero) }
@@ -82,10 +90,46 @@ fun GridPatternEditorScreen(
         pan += panChange
     }
     val counts = editable.counts()
-    val paletteCodes = counts.keys.sortedWith(
+    val paletteCodes = (counts.keys + pattern.recognizedCodes.map { it.code } + additionalCodes)
+        .distinct()
+        .sortedWith(
         compareBy<String> { it.firstOrNull() ?: 'Z' }
             .thenBy { it.drop(1).toIntOrNull() ?: 0 },
     )
+    val normalizedCodeInput = codeInput.trim().uppercase()
+    val canAddCode = normalizedCodeInput in swatches
+
+    if (showAddCodeDialog) {
+        AlertDialog(
+            onDismissRequest = { showAddCodeDialog = false },
+            title = { Text("添加 MARD221 色号") },
+            text = {
+                OutlinedTextField(
+                    value = codeInput,
+                    onValueChange = { codeInput = it.filter(Char::isLetterOrDigit).take(3) },
+                    label = { Text("例如 A4、H16") },
+                    supportingText = {
+                        if (codeInput.isNotBlank() && !canAddCode) Text("该色号不在 MARD221 目录中")
+                    },
+                    singleLine = true,
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = canAddCode,
+                    onClick = {
+                        additionalCodes = additionalCodes + normalizedCodeInput
+                        highlightCode = normalizedCodeInput
+                        codeInput = ""
+                        showAddCodeDialog = false
+                    },
+                ) { Text("添加并选中") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showAddCodeDialog = false }) { Text("取消") }
+            },
+        )
+    }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -146,7 +190,11 @@ fun GridPatternEditorScreen(
                     style = MaterialTheme.typography.bodySmall,
                 )
                 Text(
-                    if (highlightCode == null) "显示全部" else "高亮 $highlightCode",
+                    when (highlightCode) {
+                        null -> "显示全部"
+                        ERASE_GRID_CELL -> "擦除格子"
+                        else -> "高亮 $highlightCode"
+                    },
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     style = MaterialTheme.typography.bodySmall,
                 )
@@ -167,11 +215,19 @@ fun GridPatternEditorScreen(
                         zoom = zoom,
                         pan = pan,
                         onCellTap = { row, column ->
-                            highlightCode?.let { code ->
-                                val next = editable.cells
-                                    .filterNot { it.row == row && it.column == column } +
-                                    GridCell(row, column, code, 1f)
-                                editable = editable.copy(cells = next)
+                            when (val code = highlightCode) {
+                                null -> Unit
+                                ERASE_GRID_CELL -> editable = editable.copy(
+                                    cells = editable.cells.filterNot {
+                                        it.row == row && it.column == column
+                                    },
+                                )
+                                else -> {
+                                    val next = editable.cells
+                                        .filterNot { it.row == row && it.column == column } +
+                                        GridCell(row, column, code, 1f)
+                                    editable = editable.copy(cells = next)
+                                }
                             }
                         },
                     ),
@@ -187,15 +243,19 @@ fun GridPatternEditorScreen(
                             translationY = pan.y
                         },
                 ) {
-                    drawPatternGrid(editable, swatches, highlightCode)
+                    drawPatternGrid(
+                        editable,
+                        swatches,
+                        highlightCode?.takeUnless { it == ERASE_GRID_CELL },
+                    )
                 }
             }
 
             Text(
-                if (highlightCode == null) {
-                    "选择下方色号后，点击格子可以把它改成该色号；双指缩放和拖动查看细节。"
-                } else {
-                    "当前高亮 $highlightCode；点击格子可补录或改成该色号。"
+                when (highlightCode) {
+                    null -> "选择下方色号后，点击格子可以把它改成该色号；双指缩放和拖动查看细节。"
+                    ERASE_GRID_CELL -> "当前是擦除模式；点击误识别的格子可将其清空。"
+                    else -> "当前高亮 $highlightCode；点击格子可补录或改成该色号。"
                 },
                 modifier = Modifier.padding(top = 8.dp),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -213,6 +273,22 @@ fun GridPatternEditorScreen(
                         label = { Text("全部") },
                     )
                 }
+                item {
+                    FilterChip(
+                        selected = highlightCode == ERASE_GRID_CELL,
+                        onClick = {
+                            highlightCode = if (highlightCode == ERASE_GRID_CELL) null else ERASE_GRID_CELL
+                        },
+                        label = { Text("擦除") },
+                    )
+                }
+                item {
+                    FilterChip(
+                        selected = false,
+                        onClick = { showAddCodeDialog = true },
+                        label = { Text("+添加色号") },
+                    )
+                }
                 items(paletteCodes.size) { index ->
                     val code = paletteCodes[index]
                     FilterChip(
@@ -226,7 +302,7 @@ fun GridPatternEditorScreen(
                                         .size(18.dp)
                                         .background(swatches[code] ?: Color.LightGray, CircleShape),
                                 )
-                                Text("$code ${counts[code]}")
+                                Text("$code ${counts[code] ?: 0}")
                             }
                         },
                     )

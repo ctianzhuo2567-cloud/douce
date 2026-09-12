@@ -49,6 +49,11 @@ interface MardRecognitionService {
         rows: Int,
         columns: Int,
     ): GridRecognitionResult
+
+    suspend fun suggestGridGeometry(
+        imageUri: Uri,
+        crop: NormalizedCrop,
+    ): GridGeometrySuggestion
 }
 
 /** Pure parser kept separate from ML Kit so its correction rules can be regression tested. */
@@ -221,60 +226,162 @@ class OnDeviceMardRecognitionService(private val context: Context) : MardRecogni
         val bitmap = loadBitmap(imageUri, crop, maximumLongSide = 4096)
         val recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
         return try {
-            val text = Tasks.await(recognizer.process(InputImage.fromBitmap(bitmap, 0)))
-            val candidates = text.textBlocks
-                .flatMap { it.lines }
-                .flatMap { it.elements }
-                .mapNotNull { element ->
-                    val box = element.boundingBox ?: return@mapNotNull null
-                    val code = MardRecognitionParser.normalizeCandidate(
-                        element.text,
-                        paletteVersion,
-                    ) ?: return@mapNotNull null
-                    val exact = MardCode.normalize(element.text, paletteVersion) == code
-                    val column = ((box.centerX().toFloat() / bitmap.width) * columns)
-                        .toInt()
-                        .coerceIn(0, columns - 1)
-                    val row = ((box.centerY().toFloat() / bitmap.height) * rows)
-                        .toInt()
-                        .coerceIn(0, rows - 1)
-                    GridCell(
-                        row = row,
-                        column = column,
-                        code = code,
-                        confidence = if (exact) 0.68f else 0.48f,
-                    )
-                }
-
-            val selected = linkedMapOf<Pair<Int, Int>, GridCell>()
-            candidates.forEach { candidate ->
-                val key = candidate.row to candidate.column
-                val previous = selected[key]
-                if (previous == null || candidate.confidence > previous.confidence) {
-                    selected[key] = candidate
-                }
-            }
+            val candidates = recognizeGridBands(
+                recognizer = recognizer,
+                bitmap = bitmap,
+                paletteVersion = paletteVersion,
+                rows = rows,
+                columns = columns,
+            )
+            val selected = selectGridCandidates(candidates)
 
             val warnings = buildList {
                 if (selected.isEmpty()) {
                     add("没有识别到网格内的 MARD221 色号，请重新校准区域或确认图片文字清晰。")
                 }
                 if (selected.size < rows * columns / 20) {
-                    add("目前只识别到少量格子，建议放大图片后检查网格尺寸和识别结果。")
+                    add("目前只识别到少量格子，请检查框选区域和行列数。")
                 }
-                add("本版本仍需手动确认网格范围和行列；自动网格检测将在后续版本加入。")
+                add("已按行分段放大，并使用原图与反色两路 OCR；低置信度格子请对照原图抽查。")
             }
             GridRecognitionResult(
                 grid = if (selected.isEmpty()) null else GridPattern(
                     rows = rows,
                     columns = columns,
-                    cells = selected.values.toList(),
+                    cells = selected,
                     crop = crop,
                 ),
                 warnings = warnings,
             )
         } finally {
             recognizer.close()
+            bitmap.recycle()
+        }
+    }
+
+    private data class GridCandidate(
+        val row: Int,
+        val column: Int,
+        val code: String,
+        val confidence: Float,
+        val passIndex: Int,
+    )
+
+    private fun recognizeGridBands(
+        recognizer: com.google.mlkit.vision.text.TextRecognizer,
+        bitmap: Bitmap,
+        paletteVersion: MardPaletteVersion,
+        rows: Int,
+        columns: Int,
+    ): List<GridCandidate> {
+        val candidates = mutableListOf<GridCandidate>()
+        val bandRows = 18
+        val overlapRows = 1
+        var coreStartRow = 0
+        while (coreStartRow < rows) {
+            val coreEndRow = minOf(rows, coreStartRow + bandRows)
+            val sampleStartRow = maxOf(0, coreStartRow - overlapRows)
+            val sampleEndRow = minOf(rows, coreEndRow + overlapRows)
+            val top = (bitmap.height * sampleStartRow.toFloat() / rows).roundToInt()
+                .coerceIn(0, bitmap.height - 1)
+            val bottom = (bitmap.height * sampleEndRow.toFloat() / rows).roundToInt()
+                .coerceIn(top + 1, bitmap.height)
+            val band = Bitmap.createBitmap(bitmap, 0, top, bitmap.width, bottom - top)
+            val cellWidth = band.width.toFloat() / columns
+            val cellHeight = bitmap.height.toFloat() / rows
+            val requestedScale = (26f / minOf(cellWidth, cellHeight)).coerceIn(1f, 3f)
+            val widthLimitScale = 4096f / band.width
+            val scale = minOf(requestedScale, widthLimitScale.coerceAtLeast(1f))
+            val working = if (scale > 1.05f) {
+                Bitmap.createScaledBitmap(
+                    band,
+                    (band.width * scale).roundToInt(),
+                    (band.height * scale).roundToInt(),
+                    true,
+                )
+            } else {
+                band
+            }
+
+            try {
+                val passes = listOf(
+                    working to false,
+                    createTextContrastBitmap(working, inverted = true) to true,
+                )
+                try {
+                    passes.forEachIndexed { passIndex, (passBitmap, shouldRecycle) ->
+                        val text = Tasks.await(
+                            recognizer.process(InputImage.fromBitmap(passBitmap, 0)),
+                        )
+                        text.textBlocks
+                            .flatMap { it.lines }
+                            .flatMap { it.elements }
+                            .forEach { element ->
+                                val box = element.boundingBox ?: return@forEach
+                                val code = MardRecognitionParser.normalizeCandidate(
+                                    element.text,
+                                    paletteVersion,
+                                ) ?: return@forEach
+                                val sourceX = box.centerX().toFloat() / passBitmap.width * bitmap.width
+                                val sourceY = top + box.centerY().toFloat() / passBitmap.height * band.height
+                                val row = ((sourceY / bitmap.height) * rows).toInt()
+                                    .coerceIn(0, rows - 1)
+                                if (row !in coreStartRow until coreEndRow) return@forEach
+                                val column = ((sourceX / bitmap.width) * columns).toInt()
+                                    .coerceIn(0, columns - 1)
+                                val exact = MardCode.normalize(element.text, paletteVersion) == code
+                                candidates += GridCandidate(
+                                    row = row,
+                                    column = column,
+                                    code = code,
+                                    confidence = if (exact) 0.70f else 0.48f,
+                                    passIndex = passIndex,
+                                )
+                            }
+                        if (shouldRecycle) passBitmap.recycle()
+                    }
+                } finally {
+                    passes.filter { it.second && !it.first.isRecycled }.forEach { it.first.recycle() }
+                }
+            } finally {
+                if (working !== band) working.recycle()
+                band.recycle()
+            }
+            coreStartRow = coreEndRow
+        }
+        return candidates
+    }
+
+    private fun selectGridCandidates(candidates: List<GridCandidate>): List<GridCell> {
+        return candidates
+            .groupBy { Triple(it.row, it.column, it.code) }
+            .map { (key, matches) ->
+                val passAgreement = matches.map { it.passIndex }.distinct().size
+                GridCell(
+                    row = key.first,
+                    column = key.second,
+                    code = key.third,
+                    confidence = if (passAgreement >= 2) 0.90f else matches.maxOf { it.confidence },
+                )
+            }
+            .groupBy { it.row to it.column }
+            .mapNotNull { (_, cells) -> cells.maxByOrNull { it.confidence } }
+    }
+
+    override suspend fun suggestGridGeometry(
+        imageUri: Uri,
+        crop: NormalizedCrop,
+    ): GridGeometrySuggestion {
+        val bitmap = loadBitmap(
+            uri = imageUri,
+            crop = crop,
+            maximumLongSide = 1800,
+        )
+        return try {
+            val pixels = IntArray(bitmap.width * bitmap.height)
+            bitmap.getPixels(pixels, 0, bitmap.width, 0, 0, bitmap.width, bitmap.height)
+            GridGeometryDetector.detectArgb(pixels, bitmap.width, bitmap.height)
+        } finally {
             bitmap.recycle()
         }
     }
