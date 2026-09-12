@@ -31,6 +31,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -67,6 +68,7 @@ fun CropSelectionScreen(
     var imageSize by remember { mutableStateOf(IntSize.Zero) }
     val imageRect = fittedImageRect(viewport, imageSize)
     val density = LocalDensity.current
+    val currentCrop by rememberUpdatedState(crop)
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -157,18 +159,19 @@ fun CropSelectionScreen(
                                     height = with(density) { (bottom - top).toDp() },
                                 )
                                 .border(3.dp, BerryPink, RoundedCornerShape(8.dp))
-                                .pointerInput(imageRect, crop) {
+                                .pointerInput(imageRect) {
                                     detectDragGestures { change, drag ->
                                         change.consume()
-                                        val newLeft = (crop.left + drag.x / imageRect.width)
-                                            .coerceIn(0f, 1f - crop.width)
-                                        val newTop = (crop.top + drag.y / imageRect.height)
-                                            .coerceIn(0f, 1f - crop.height)
-                                        crop = crop.copy(
+                                        val latestCrop = currentCrop
+                                        val newLeft = (latestCrop.left + drag.x / imageRect.width)
+                                            .coerceIn(0f, 1f - latestCrop.width)
+                                        val newTop = (latestCrop.top + drag.y / imageRect.height)
+                                            .coerceIn(0f, 1f - latestCrop.height)
+                                        crop = latestCrop.copy(
                                             left = newLeft,
                                             top = newTop,
-                                            right = newLeft + crop.width,
-                                            bottom = newTop + crop.height,
+                                            right = newLeft + latestCrop.width,
+                                            bottom = newTop + latestCrop.height,
                                         )
                                     }
                                 },
@@ -176,15 +179,16 @@ fun CropSelectionScreen(
                             ResizeHandle(
                                 modifier = Modifier
                                     .align(Alignment.TopStart)
-                                    .offset((-11).dp, (-11).dp)
-                                    .pointerInput(imageRect, crop) {
+                                    .size(44.dp)
+                                    .pointerInput(imageRect) {
                                         detectDragGestures { change, drag ->
                                             change.consume()
-                                            crop = crop.copy(
-                                                left = (crop.left + drag.x / imageRect.width)
-                                                    .coerceIn(0f, crop.right - MIN_CROP_SIZE),
-                                                top = (crop.top + drag.y / imageRect.height)
-                                                    .coerceIn(0f, crop.bottom - MIN_CROP_SIZE),
+                                            val latestCrop = currentCrop
+                                            crop = latestCrop.copy(
+                                                left = (latestCrop.left + drag.x / imageRect.width)
+                                                    .coerceIn(0f, latestCrop.right - MIN_CROP_SIZE),
+                                                top = (latestCrop.top + drag.y / imageRect.height)
+                                                    .coerceIn(0f, latestCrop.bottom - MIN_CROP_SIZE),
                                             )
                                         }
                                     },
@@ -192,15 +196,16 @@ fun CropSelectionScreen(
                             ResizeHandle(
                                 modifier = Modifier
                                     .align(Alignment.BottomEnd)
-                                    .offset(11.dp, 11.dp)
-                                    .pointerInput(imageRect, crop) {
+                                    .size(44.dp)
+                                    .pointerInput(imageRect) {
                                         detectDragGestures { change, drag ->
                                             change.consume()
-                                            crop = crop.copy(
-                                                right = (crop.right + drag.x / imageRect.width)
-                                                    .coerceIn(crop.left + MIN_CROP_SIZE, 1f),
-                                                bottom = (crop.bottom + drag.y / imageRect.height)
-                                                    .coerceIn(crop.top + MIN_CROP_SIZE, 1f),
+                                            val latestCrop = currentCrop
+                                            crop = latestCrop.copy(
+                                                right = (latestCrop.right + drag.x / imageRect.width)
+                                                    .coerceIn(latestCrop.left + MIN_CROP_SIZE, 1f),
+                                                bottom = (latestCrop.bottom + drag.y / imageRect.height)
+                                                    .coerceIn(latestCrop.top + MIN_CROP_SIZE, 1f),
                                             )
                                         }
                                     },
@@ -226,11 +231,16 @@ fun CropSelectionScreen(
 @Composable
 private fun ResizeHandle(modifier: Modifier = Modifier) {
     Box(
-        modifier = modifier
-            .size(22.dp)
-            .background(Color.White, CircleShape)
-            .border(4.dp, BerryPink, CircleShape),
-    )
+        modifier = modifier,
+        contentAlignment = Alignment.Center,
+    ) {
+        Box(
+            modifier = Modifier
+                .size(22.dp)
+                .background(Color.White, CircleShape)
+                .border(4.dp, BerryPink, CircleShape),
+        )
+    }
 }
 
 private fun fittedImageRect(viewport: IntSize, image: IntSize): Rect {
